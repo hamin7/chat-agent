@@ -1,22 +1,20 @@
-import time
+from langchain.prompts import ChatPromptTemplate
 from langchain.document_loaders import UnstructuredFileLoader
 from langchain.embeddings import CacheBackedEmbeddings, OpenAIEmbeddings
+from langchain.schema.runnable import RunnableLambda, RunnablePassthrough
 from langchain.storage import LocalFileStore
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores.faiss import FAISS
+from langchain.chat_models import ChatOpenAI
 import streamlit as st
-import nltk
-import ssl
-from dotenv import load_dotenv
-
-load_dotenv(dotenv_path=".env")
-# SSL 인증서 무시
-ssl._create_default_https_context = ssl._create_unverified_context
-nltk.download('punkt')
 
 st.set_page_config(
     page_title="DocumentGPT",
     page_icon="📃",
+)
+
+llm = ChatOpenAI(
+    temperature=0.1,
 )
 
 
@@ -57,15 +55,30 @@ def paint_history():
         )
 
 
-st.title("DocumentGPT")
+def format_docs(docs):
+    return "\n\n".join(document.page_content for document in docs)
+
+
+prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """
+            Answer the question using ONLY the following context. If you don't know the answer just say you don't know. DON'T make anything up.
+            
+            Context: {context}
+            """,
+        ),
+        ("human", "{question}"),
+    ]
+)
+
+
+st.title("ChatBot")
 
 st.markdown(
     """
 Welcome!
-            
-Use this chatbot to ask questions to an AI about your files!
-
-Upload your files on the sidebar.
 """
 )
 
@@ -82,5 +95,18 @@ if file:
     message = st.chat_input("Ask anything about your file...")
     if message:
         send_message(message, "human")
+        print(message)
+        chain = (
+                {
+                    "context": retriever | RunnableLambda(format_docs),
+                    "question": RunnablePassthrough(),
+                }
+                | prompt
+                | llm
+        )
+        response = chain.invoke(message)
+        print(response)
+        send_message(response.content, "ai")
+
 else:
     st.session_state["messages"] = []
