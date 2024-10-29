@@ -10,3 +10,6 @@
 venv/*
 .env
 **/__pycache__/**
+
+files/
+.cache/
