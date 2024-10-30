@@ -8,6 +8,7 @@ from langchain.vectorstores.faiss import FAISS
 from langchain.chat_models import ChatOpenAI
 import streamlit as st
 import sqlite3
+import uuid
 from langchain.memory import ConversationKGMemory
 
 from dotenv import load_dotenv
@@ -18,6 +19,7 @@ st.set_page_config(
     page_icon="📃",
 )
 
+# 기본 모델 -> gpt-3.5-turbo
 llm = ChatOpenAI(
     temperature=0.1,
 )
@@ -27,17 +29,17 @@ memory = ConversationKGMemory(
     return_messages=True,
 )
 
-def add_message(input, output):
+def add_message_to_KGMemory(input, output):
     memory.save_context({"input": input}, {"output": output})
 
 # SQLite 데이터베이스에 연결 (데이터베이스가 없으면 새로 생성)
 conn = sqlite3.connect("sqlite3.db")
 cursor = conn.cursor()
 
-# 예시 테이블 생성 (필요에 따라 테이블 스키마를 정의하세요)
+# 테이블 생성
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS interactions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    uuid TEXT PRIMARY KEY,
     user_input TEXT,
     bot_response TEXT,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -45,12 +47,13 @@ CREATE TABLE IF NOT EXISTS interactions (
 """)
 conn.commit()
 
-def save_interaction(user_input, bot_response):
-    # 데이터베이스에 데이터 저장
+# 데이터 삽입 함수
+def insert_interaction(uuid, user_input, bot_response):
+    # 매개변수로 받은 id를 그대로 사용하여 데이터베이스에 저장
     cursor.execute("""
-    INSERT INTO interactions (user_input, bot_response) 
-    VALUES (?, ?)
-    """, (user_input, bot_response))
+    INSERT INTO interactions (uuid, user_input, bot_response) 
+    VALUES (?, ?, ?)
+    """, (uuid, user_input, bot_response))
     conn.commit()
     print("Data saved successfully.")
 
@@ -140,7 +143,8 @@ if file:
                 | llm
         )
         response = chain.invoke(message)
-        save_interaction(message, response.content)
+        uuid = "123e4567-e89b-12d3-a456-426614174000"  # 샘플 UUID 값
+        insert_interaction(uuid, message, response.content)
         send_message(response.content, "ai")
 
 else:
