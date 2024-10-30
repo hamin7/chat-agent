@@ -13,11 +13,6 @@ Welcome to my Chat Agent Portfolio!
             
 Here are the apps I made:
             
-- [ ] [DocumentGPT](/DocumentGPT)
-- [ ] [PrivateGPT](/PrivateGPT)
-- [ ] [QuizGPT](/QuizGPT)
-- [ ] [SiteGPT](/SiteGPT)
-- [ ] [MeetingGPT](/MeetingGPT)
-- [ ] [InvestorGPT](/InvestorGPT)
+- [ ] [ChatBot](/ChatBot)
 """
 )

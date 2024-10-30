@@ -7,9 +7,14 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores.faiss import FAISS
 from langchain.chat_models import ChatOpenAI
 import streamlit as st
+import sqlite3
+from langchain.memory import ConversationKGMemory
+
+from dotenv import load_dotenv
+load_dotenv(dotenv_path="../.env")
 
 st.set_page_config(
-    page_title="DocumentGPT",
+    page_title="ChatBot",
     page_icon="📃",
 )
 
@@ -17,6 +22,37 @@ llm = ChatOpenAI(
     temperature=0.1,
 )
 
+memory = ConversationKGMemory(
+    llm=llm,
+    return_messages=True,
+)
+
+def add_message(input, output):
+    memory.save_context({"input": input}, {"output": output})
+
+# SQLite 데이터베이스에 연결 (데이터베이스가 없으면 새로 생성)
+conn = sqlite3.connect("sqlite3.db")
+cursor = conn.cursor()
+
+# 예시 테이블 생성 (필요에 따라 테이블 스키마를 정의하세요)
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS interactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_input TEXT,
+    bot_response TEXT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+""")
+conn.commit()
+
+def save_interaction(user_input, bot_response):
+    # 데이터베이스에 데이터 저장
+    cursor.execute("""
+    INSERT INTO interactions (user_input, bot_response) 
+    VALUES (?, ?)
+    """, (user_input, bot_response))
+    conn.commit()
+    print("Data saved successfully.")
 
 @st.cache_data(show_spinner="Embedding file...")
 def embed_file(file):
@@ -95,7 +131,6 @@ if file:
     message = st.chat_input("Ask anything about your file...")
     if message:
         send_message(message, "human")
-        print(message)
         chain = (
                 {
                     "context": retriever | RunnableLambda(format_docs),
@@ -105,7 +140,7 @@ if file:
                 | llm
         )
         response = chain.invoke(message)
-        print(response)
+        save_interaction(message, response.content)
         send_message(response.content, "ai")
 
 else:
