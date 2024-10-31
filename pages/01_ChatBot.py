@@ -8,10 +8,10 @@ from langchain.vectorstores.faiss import FAISS
 from langchain.chat_models import ChatOpenAI
 import streamlit as st
 import sqlite3
-import uuid
-from langchain.memory import ConversationKGMemory
+from langchain.memory import ConversationSummaryBufferMemory
 
 from dotenv import load_dotenv
+
 load_dotenv(dotenv_path="../.env")
 
 st.set_page_config(
@@ -24,13 +24,18 @@ llm = ChatOpenAI(
     temperature=0.1,
 )
 
-memory = ConversationKGMemory(
+summaryBufferMemory = ConversationSummaryBufferMemory(
     llm=llm,
+    max_token_limit=5,
     return_messages=True,
 )
 
-def add_message_to_KGMemory(input, output):
-    memory.save_context({"input": input}, {"output": output})
+def add_summary_to_memory(input, output):
+    summaryBufferMemory.save_context({"input": input}, {"output": output})
+
+
+def get_summary():
+    return summaryBufferMemory.load_memory_variables({})
 
 # SQLite 데이터베이스에 연결 (데이터베이스가 없으면 새로 생성)
 conn = sqlite3.connect("sqlite3.db")
@@ -39,21 +44,23 @@ cursor = conn.cursor()
 # 테이블 생성
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS interactions (
-    uuid TEXT PRIMARY KEY,
+    transaction_id INTEGER PRIMARY KEY AUTOINCREMENT, 
+    uuid TEXT,
     user_input TEXT,
     bot_response TEXT,
+    summary TEXT,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 )
 """)
 conn.commit()
 
 # 데이터 삽입 함수
-def insert_interaction(uuid, user_input, bot_response):
+def insert_interaction(uuid, user_input, bot_response, summury):
     # 매개변수로 받은 id를 그대로 사용하여 데이터베이스에 저장
     cursor.execute("""
-    INSERT INTO interactions (uuid, user_input, bot_response) 
-    VALUES (?, ?, ?)
-    """, (uuid, user_input, bot_response))
+    INSERT INTO interactions (uuid, user_input, bot_response, summary) 
+    VALUES (?, ?, ?, ?)
+    """, (uuid, user_input, bot_response, summury))
     conn.commit()
     print("Data saved successfully.")
 
@@ -143,8 +150,9 @@ if file:
                 | llm
         )
         response = chain.invoke(message)
+        add_summary_to_memory(message, response.content)
         uuid = "123e4567-e89b-12d3-a456-426614174000"  # 샘플 UUID 값
-        insert_interaction(uuid, message, response.content)
+        insert_interaction(uuid, message, response.content, str(get_summary()))
         send_message(response.content, "ai")
 
 else:
